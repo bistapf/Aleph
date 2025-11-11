@@ -54,8 +54,6 @@ class Analysis():
             print(f"----> ERROR: Requested unknown --MCflavour for --MCtype {self.ana_args.MCtype}. Check the dictionary.")
             exit()
 
-
-
         #set the input/output directories:
         if self.ana_args.doData:
             self.input_dir = "/eos/experiment/fcc/ee/analyses/case-studies/aleph/LEP1_DATA/"
@@ -75,8 +73,6 @@ class Analysis():
             self.process_list = {
                 "QQB" : {"fraction" : 0.01, "output":output_name},           
             }
-
-            
 
         #set run options:
         self.n_threads = 4 
@@ -99,10 +95,11 @@ class Analysis():
 
         if self.ana_args.doData:
             df = df.Filter("AlephSelection::sel_class_filter(16)(ClassBitset)  || AlephSelection::sel_class_filter(17)(ClassBitset) ")
+            df = df.Define("jetPID", "-999")
         else:
             #### Using Classbit to filter out QQbar samples and then get a specific flavor of jets
             df = df.Define("jetPID", f"AlephSelection::getJetPID(ClassBitset, {coll['GenParticles']})")
-            df = df.Filter("jetPID == 1")
+            df = df.Filter(f"jetPID == {self.ana_args.MCflavour}")
 
         # Define RP kinematics
         ####################################################################################################
@@ -202,9 +199,6 @@ class Analysis():
         df = df.Define("pfcand_btagJetDistSig","JetConstituentsUtils::get_JetDistSig(pfcand_btagJetDistVal, pfcand_dxydxy, pfcand_dzdz)")
 
 
-
-
-
         ############################################# Jet Level Variables #######################################################
         df=df.Define("event_njet",   "JetConstituentsUtils::count_jets(jetc)")
         df.Filter("event_njet > 1")
@@ -266,6 +260,7 @@ class Analysis():
     def output(self):
 
         return [
+            "jetPID",
             #"event_type",
             "event_invariant_mass","event_njet",  
             "jet_mass","jet_p","jet_e", "jet_phi", "jet_theta", "jet_pT",
