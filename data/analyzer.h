@@ -71,6 +71,32 @@ using FCCAnalysesJetConstituentsData = rv::RVec<float>;
 // Event and particle selectors
 // ----------------------------
 
+//////////////////////////////////////////////////////////////////////////////////////////
+// -----------------------------------
+// The following will first filter the 
+// event to check if it's a qq event
+// then it return the PID of qq 
+// -----------------------------------
+
+float getJetPID(const ROOT::VecOps::RVec<uint32_t>& ClassBit,
+                   const ROOT::VecOps::RVec<edm4hep::MCParticleData>& particles) {
+    // Check if bit 15 (16-1) is set in the first element of ClassBit
+    if (ClassBit.empty() || !std::bitset<32>(ClassBit[0])[15]) {
+        return -1.0f; // Not selected
+    }
+
+    // Bit 15 is true — find the first quark (|PDG| in 1..5)
+    float result = -1.0f;
+    for (const auto& particle : particles) {
+        if (std::abs(particle.PDG) > 0 && std::abs(particle.PDG) < 6) {
+            result = static_cast<float>(std::abs(particle.PDG));
+            break;
+        }
+    }
+
+    return result;
+}
+
 /// Selects charged particles based on their absolute charge.
 struct sel_charged {
   const int m_charge;
