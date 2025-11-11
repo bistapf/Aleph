@@ -1,19 +1,48 @@
-processList = {
 
-"1994" : {"fraction" : 1},           
-}
+from argparse import ArgumentParser
 
+class Analysis():
 
-outputDir = "/eos/user/h/hfatehi/alephdata"
-inputDir = "/eos/experiment/fcc/ee/analyses/case-studies/aleph/LEP1_DATA/"
-nCPUS = -1
-includePaths = ["analyzer.h"]
+    def __init__(self, cmdline_args):
+        parser = ArgumentParser(
+            description='Additional analysis arguments',
+            usage='Provide additional arguments after analysis script path')
+        parser.add_argument('--tag', required=True, type=str,
+                            help='Production tag to indicate version.')
+        parser.add_argument('--doData', action='store_true',
+                            help='Run on data, instead of MC (which is the default behaviour).')
+        parser.add_argument('--year', default='1994',
+                            help='MC/data year to run on - currently only 1994 as option.')
+        parser.add_argument('--MCtype', default='zqq',
+                            help='Type of MC to run on - currently only zqq as option.')
+        # Parse additional arguments not known to the FCCAnalyses parsers
+        # All command line arguments know to fccanalysis are provided in the
+        # `cmdline_arg` dictionary.
+        self.ana_args, _ = parser.parse_known_args(cmdline_args['remaining'])
+        
 
+        #set the input/output directories:
+        if self.ana_args.doData:
+            self.input_dir = "/eos/experiment/fcc/ee/analyses/case-studies/aleph/LEP1_DATA/"
+            self.outputDir = f"/eos/experiment/fcc/ee/analyses/case-studies/aleph/processedData/{self.ana_args.year}/stage1/{self.ana_args.tag}"
+            
+            self.process_list = {
+                "1994" : {"fraction" : 0.01},           
+            }  
 
-class RDFanalysis:
-    def analysers(df):
+        else:
+            self.input_dir = f"/eos/experiment/aleph/EDM4HEP/MC/{self.ana_args.year}/"
+            self.outputDir = f"/eos/experiment/fcc/ee/analyses/case-studies/aleph/processedMC/{self.ana_args.year}/{self.ana_args.MCtype}/stage1/{self.ana_args.tag}"
 
+            self.process_list = {
+                "QQB" : {"fraction" : 0.01},           
+            }
 
+        #set run options:
+        self.n_threads = 4 
+        self.include_paths = ["analyzer.h"]
+
+    def analyzers(self, df):
 
         coll = {
         "GenParticles": "MCParticles",
@@ -191,7 +220,7 @@ class RDFanalysis:
 
         return df
 
-    def output():
+    def output(self):
 
         return [
             #"event_type",
