@@ -13,13 +13,48 @@ class Analysis():
                             help='Run on data, instead of MC (which is the default behaviour).')
         parser.add_argument('--year', default='1994',
                             help='MC/data year to run on - currently only 1994 as option.')
-        parser.add_argument('--MCtype', default='zqq',
+        parser.add_argument('--MCtype', default="zqq", type=str,
                             help='Type of MC to run on - currently only zqq as option.')
+        parser.add_argument('--MCflavour', default=None, type=str,
+                            help='For MC only: filter out events based on truth quark flavours. Default is none. Options: \
+                            1 = dd, 2 = uu, 3 = ss, 4 = cc, 5 = bb')
         # Parse additional arguments not known to the FCCAnalyses parsers
         # All command line arguments know to fccanalysis are provided in the
         # `cmdline_arg` dictionary.
         self.ana_args, _ = parser.parse_known_args(cmdline_args['remaining'])
+
+        #Dictionary for setting output names:
+        outnames_dict = {
+            # proc: {flavour_id_1:{flavour_name_1}, flavour_id_2:{flavour_name_2}, ..}
+            "zqq":{
+                "1":"Zdd",
+                "2":"Zuu",
+                "3":"Zss",
+                "4":"Zcc",
+                "5":"Zbb",
+                }
+        }
+
+        # sanity checks for the command line arguments:
+        if self.ana_args.doData and self.ana_args.MCtype:
+            print("----> WARNING: Incompatible input arguments: --MCtype defined with --doData, will be ignored.")
+
+        if self.ana_args.doData and self.ana_args.MCflavour:
+            print("----> WARNING: Incompatible input arguments: --MCflavour defined with --doData, will be ignored.")
+
+        if self.ana_args.MCflavour and not self.ana_args.MCtype:
+            print("----> ERROR: Requested truth flavour filter with --MCflavour without specifying --MCtype.")
+            exit()
         
+        if self.ana_args.MCtype and not self.ana_args.MCtype in outnames_dict:
+            print("----> ERROR: Requested unknown --MCtype. Currently only zqq available.")
+            exit()
+        
+        if self.ana_args.MCflavour and not self.ana_args.MCflavour in outnames_dict[self.ana_args.MCtype]:
+            print(f"----> ERROR: Requested unknown --MCflavour for --MCtype {self.ana_args.MCtype}. Check the dictionary.")
+            exit()
+
+
 
         #set the input/output directories:
         if self.ana_args.doData:
@@ -34,9 +69,14 @@ class Analysis():
             self.input_dir = f"/eos/experiment/aleph/EDM4HEP/MC/{self.ana_args.year}/"
             self.output_dir = f"/eos/experiment/fcc/ee/analyses/case-studies/aleph/processedMC/{self.ana_args.year}/{self.ana_args.MCtype}/stage1/{self.ana_args.tag}"
 
+            #set the output file name depending on resonance flavour 
+            output_name = outnames_dict[self.ana_args.MCtype][self.ana_args.MCflavour]
+
             self.process_list = {
-                "QQB" : {"fraction" : 0.01},           
+                "QQB" : {"fraction" : 0.01, "output":output_name},           
             }
+
+            
 
         #set run options:
         self.n_threads = 4 
@@ -57,9 +97,12 @@ class Analysis():
         "Bz": "magFieldBz",
         }
 
-
-        df = df.Filter("AlephSelection::sel_class_filter(16)(ClassBitset)  || AlephSelection::sel_class_filter(17)(ClassBitset) ")
-
+        if self.ana_args.doData:
+            df = df.Filter("AlephSelection::sel_class_filter(16)(ClassBitset)  || AlephSelection::sel_class_filter(17)(ClassBitset) ")
+        else:
+            #### Using Classbit to filter out QQbar samples and then get a specific flavor of jets
+            df = df.Define("jetPID", f"AlephSelection::getJetPID(ClassBitset, {coll['GenParticles']})")
+            df = df.Filter("jetPID == 1")
 
         # Define RP kinematics
         ####################################################################################################
