@@ -9,6 +9,8 @@ cd Aleph/data/
 source /cvmfs/sw-nightlies.hsf.org/key4hep/setup.sh
 ```
 
+Need nightlies because updated FCCAnalyses version after this commit is needed: https://github.com/HEP-FCC/FCCAnalyses/pull/474
+
 ## Stage1: Produce ntuples
 
 Note: Change the data fraction based on your needs.
