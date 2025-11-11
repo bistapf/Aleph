@@ -128,6 +128,18 @@ struct sel_class_filter {
   }
 };
 
+std::vector<int> bitsetToIndices(const ROOT::VecOps::RVec<uint32_t>& bitset_coll) {
+    std::vector<int> indices;
+    std::bitset<32> bits(bitset_coll[0]);
+
+    for (size_t i = 0; i < bits.size(); ++i) {
+        if (bits.test(i)) {  // check if bit i is set
+            indices.push_back(static_cast<int>(i) + 1); //class counting starts at 1, but bit indices at 0
+        }
+    }
+    return indices;
+}
+
 /// Filters events by run number (RVec-compatible)
 struct sel_runs_filter {
   const std::set<int>& m_runs_set;

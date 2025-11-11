@@ -97,9 +97,13 @@ class Analysis():
             df = df.Filter("AlephSelection::sel_class_filter(16)(ClassBitset)  || AlephSelection::sel_class_filter(17)(ClassBitset) ")
             df = df.Define("jetPID", "-999")
         else:
-            #### Using Classbit to filter out QQbar samples and then get a specific flavor of jets
+            # Using Classbit to filter out QQbar samples and then get a specific flavor of jets
+            # d-quark: 1, u-quark:2, s-quark:3, c-quark:4, b-quark: 5
             df = df.Define("jetPID", f"AlephSelection::getJetPID(ClassBitset, {coll['GenParticles']})")
             df = df.Filter(f"jetPID == {self.ana_args.MCflavour}")
+        
+        # store the classbitset in the output
+        df = df.Define("event_class", "AlephSelection::bitsetToIndices(ClassBitset)")
 
         # Define RP kinematics
         ####################################################################################################
@@ -120,15 +124,9 @@ class Analysis():
         df = df.Define("jetc", "JetConstituentsUtils::build_constituents_cluster(RecoParticles, _jetc)")
         df = df.Define("jetConstitutentsTypes", f"AlephSelection::build_constituents_Types()(ParticleID, _jetc)")
 
-
         ############################################# Event Level Variables #######################################################
         df = df.Define("jet_p4", "JetConstituentsUtils::compute_tlv_jets(jets)" )
         df = df.Define("event_invariant_mass", "JetConstituentsUtils::InvariantMass(jet_p4[0], jet_p4[1])")
-        #df = df.Define("event_type", "AlephSelection::get_EventType({})".format(coll["GenParticles"]))
-
-         ########## Picking Jet Flavors
-
-        #df = df.Filter("event_type == 2") # d-quark: 1, u-quark:2, s-quark:3, c-quark:4, b-quark: 5
 
         # ===== VERTEX
         df = df.Define(
@@ -138,9 +136,8 @@ class Analysis():
         df = df.Define("VertexX", "Vertices.position.x")
         df = df.Define("VertexY", "Vertices.position.y")
         df = df.Define("VertexZ", "Vertices.position.z")
+
         ############################################# Particle Flow Level Variables #######################################################
-
-
         df = df.Define("pfcand_isMu",     "AlephSelection::get_isType(jetConstitutentsTypes,2)")
         df = df.Define("pfcand_isEl",     "AlephSelection::get_isType(jetConstitutentsTypes,1)")
         df = df.Define("pfcand_isGamma",  "AlephSelection::get_isType(jetConstitutentsTypes,4)")
@@ -164,7 +161,7 @@ class Analysis():
         df = df.Define("Bz", '1.5')
 
 
-############################################# Track Parameters and Covariance #######################################################
+        ############################################# Track Parameters and Covariance #######################################################
 
         df = df.Define("pfcand_dxy",        f'JetConstituentsUtils::XPtoPar_dxy(jetc, {coll["TrackState"]}, pv, Bz)') 
         df = df.Define("pfcand_dz",         f'JetConstituentsUtils::XPtoPar_dz(jetc, {coll["TrackState"]}, pv, Bz)') 
@@ -189,7 +186,7 @@ class Analysis():
 
 
 
-############################################# Btag Variables #######################################################
+        ############################################# Btag Variables #######################################################
 
         df = df.Define("pfcand_btagSip2dVal",   "JetConstituentsUtils::get_Sip2dVal_clusterV(jets, pfcand_dxy, pfcand_phi0, Bz)") 
         df = df.Define("pfcand_btagSip2dSig",   "JetConstituentsUtils::get_Sip2dSig(pfcand_btagSip2dVal, pfcand_dxydxy)") 
@@ -199,9 +196,11 @@ class Analysis():
         df = df.Define("pfcand_btagJetDistSig","JetConstituentsUtils::get_JetDistSig(pfcand_btagJetDistVal, pfcand_dxydxy, pfcand_dzdz)")
 
 
-        ############################################# Jet Level Variables #######################################################
+        ############################################# Jet Level Variables and selection #######################################################
+        
         df=df.Define("event_njet",   "JetConstituentsUtils::count_jets(jetc)")
         df.Filter("event_njet > 1")
+
         ##############################################################################################################
         df = df.Define("sumTLVs", "JetConstituentsUtils::sum_tlv_constituents(jetc)")
 
@@ -260,6 +259,7 @@ class Analysis():
     def output(self):
 
         return [
+            "event_class",
             "jetPID",
             #"event_type",
             "event_invariant_mass","event_njet",  
