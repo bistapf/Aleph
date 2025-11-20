@@ -1,0 +1,37 @@
+{
+    "Zbb": {
+        "numberOfEvents": 1080986,
+        "sumOfWeights": 1080986.0,
+        "crossSection": 30385.0, 
+        "kfactor": 1.0,
+        "matchingEfficiency": 1.0
+    }, 
+    "Zcc": {
+        "numberOfEvents": 1080986,
+        "sumOfWeights": 1080986.0,
+        "crossSection": 30385.0, 
+        "kfactor": 1.0,
+        "matchingEfficiency": 1.0
+    }, 
+    "Zss": {
+        "numberOfEvents": 1080986,
+        "sumOfWeights": 1080986.0,
+        "crossSection": 30385.0, 
+        "kfactor": 1.0,
+        "matchingEfficiency": 1.0
+    }, 
+    "Zuu": {
+        "numberOfEvents": 1080986,
+        "sumOfWeights": 1080986.0,
+        "crossSection": 30385.0,
+        "kfactor": 1.0,
+        "matchingEfficiency": 1.0
+    }, 
+    "Zdd": {
+        "numberOfEvents": 1080986,
+        "sumOfWeights": 1080986.0,
+        "crossSection": 30385.0, 
+        "kfactor": 1.0,
+        "matchingEfficiency": 1.0
+    } 
+}
