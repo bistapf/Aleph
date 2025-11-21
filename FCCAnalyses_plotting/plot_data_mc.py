@@ -16,14 +16,14 @@ ROOT.gStyle.SetOptTitle(0)
 ROOT.gStyle.SetOptStat(0)
 
 def addOverflowToLastBin(hist):
-	# print("Adding overflow to last bin for histogram:", hist.GetName())
-	overflow_index = hist.GetNbinsX()+1
-	if hist.IsBinOverflow(overflow_index):
-		# print ("Found overflow bin with index", overflow_index, "merging content with previous bin!")
-		overflow = hist.GetBinContent(overflow_index)
-		lastbin = hist.GetBinContent(overflow_index-1)
-		hist.SetBinContent(overflow_index-1, overflow+lastbin)
-		# print ("Added together overflow =", overflow, "and last bin content", lastbin, "in histogram of name", hist.GetName())
+    # print("Adding overflow to last bin for histogram:", hist.GetName())
+    overflow_index = hist.GetNbinsX()+1
+    if hist.IsBinOverflow(overflow_index):
+        # print ("Found overflow bin with index", overflow_index, "merging content with previous bin!")
+        overflow = hist.GetBinContent(overflow_index)
+        lastbin = hist.GetBinContent(overflow_index-1)
+        hist.SetBinContent(overflow_index-1, overflow+lastbin)
+        # print ("Added together overflow =", overflow, "and last bin content", lastbin, "in histogram of name", hist.GetName())
 
 
 
@@ -165,10 +165,10 @@ def get_hist_from_tree(proc_name, input_filepath, hist_var, hist_nbins, hist_xmi
         hist_binEdges = array("d", hist_nbins)
         hist_nBins = len(hist_nbins)-1
         #init the histogram with variable bin widths:
-        hist_model = ROOT.RDF.TH1DModel(f"hist_{hist_var}", f"hist_{hist_var}", hist_nBins, hist_binEdges)
+        hist_model = ROOT.RDF.TH1DModel(f"hist_{proc_name}_{hist_var}", f"hist_{proc_name}_{hist_var}", hist_nBins, hist_binEdges)
 
     else:
-        hist_model = ROOT.RDF.TH1DModel(f"hist_{hist_var}", f"hist_{hist_var}", hist_nbins, hist_xmin, hist_xmax)
+        hist_model = ROOT.RDF.TH1DModel(f"hist_{proc_name}_{hist_var}", f"hist_{proc_name}_{hist_var}", hist_nbins, hist_xmin, hist_xmax)
 
     # get the dataframe and fill the histogram model
     rdf = get_rdf(input_filepath)
@@ -222,9 +222,9 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base,
         # make summed up histogram of all samples in the process
         if not data_hist: 
             data_hist = copy.deepcopy(data_tmp_hist)
+            data_hist.SetName("data_hist")
         else:
             data_hist.Add(data_tmp_hist)
-
 
     # get MC prediction
     mc_hists_list = []
@@ -252,6 +252,7 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base,
             # make summed up histogram of all samples in the process
             if not mc_proc_hist: 
                 mc_proc_hist = copy.deepcopy(tmp_hist)
+                mc_proc_hist.SetName(f"{proc}_hist")
             else:
                 mc_proc_hist.Add(tmp_hist)
             
@@ -341,7 +342,6 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base,
     if fix_ratio_range:
         hist_ratio.GetYaxis().SetRangeUser(fix_ratio_range[0], fix_ratio_range[1])
 
-
     pad_low.cd()
     pad_low.Update()
     hist_ratio.Draw("E0P")
@@ -355,61 +355,43 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base,
         os.makedirs(out_dir_base)
 
     if weighted:
-        filename = "hists_"+plot.name+"_weighted"+out_format
+        filename = f"hists_{plot.name}_weighted"
     else:
-        filename = "hists_"+plot.name+out_format
+        filename = f"hists_{plot.name}"
+    
+    if do_log_y:
+        filename+="_logY"
+    
+    if add_overflow:
+        filename+="_addedOverflow"
         
-    fileout = os.path.join(out_dir_base, filename)
-
+    fileout = os.path.join(out_dir_base, f"{filename}{out_format}")
 
     canvas.SaveAs(fileout)
 
-
-    #write out a root file for use in WS building if requested:
+    #write out a root file for use in e.g. WS building if requested:
     if store_root_file:
-        print("Do we need this")
-        # filename = "histograms_"+variable+"_"+cut_name+".root"
-        # fileoutpath = os.path.join(out_dir_base, "WS_Input")
-        # if not os.path.exists(fileoutpath):
-        # 	os.makedirs(fileoutpath)
-        # fileoutpath = os.path.join(fileoutpath, filename)
-        # fileout = ROOT.TFile(fileoutpath, "RECREATE")
-        # fileout.cd()
+        out_filepath = os.path.join(out_dir_base, f"histograms_{plot.name}.root")
 
-        # #subdirectories for categories
-        # # if "_dphi" in extra_cut:
-        # if extra_cut:
-        # 	fileout.mkdir(extra_cut_name.strip("_"))
-        # 	fileout.cd(extra_cut_name.strip("_"))
+        fileout = ROOT.TFile(out_filepath, "RECREATE")
+        fileout.cd()
+
+        data_hist.Write()
+
+        for mc_hist in mc_hists_list:
+            mc_hist.Write()
+        
+        # add the metadata as TParameters for book-keeping
+        lumi_param = ROOT.TParameter(type(lumi).__name__)("Luminosity", lumi)
+        lumi_param.Write()
+
+        ecm_param = ROOT.TParameter(type(ecm).__name__)("Energy", ecm)
+        ecm_param.Write()
 
 
+        print("Wrote root file with histograms to:", out_filepath)
 
-        # signal_hist.Write()
-
-        # print("total signal evts = ", signal_hist.Integral())
-
-        # for bkg_hist in bkg_hists_list:
-        # 	proc_name = bkg_hist.GetName().split(variable)[0].rstrip("_")
-        # 	# print(proc_name)
-        # 	bkg_hist.SetName(proc_name)
-        # 	bkg_hist.SetTitle(proc_name)
-        # 	bkg_hist.SetLineColor(ROOT.kBlack)
-        # 	bkg_hist.Write()
-        # 	print("total {} evts = {}".format(proc_name, bkg_hist.Integral()) )
-
-        # #add an observation
-
-        # #this somehow stopped working??
-        # # obs_hist = bkg_stack.GetStack().Last().Clone("data_obs")
-        # # obs_hist.SetName("data_obs")
-        # # obs_hist.SetTitle("data_obs")
-        # # obs_hist.Write()
-
-        # data_hist.Write()
-
-        # print("Wrote root file:", fileoutpath)
-
-        # fileout.Close()
+        fileout.Close()
      
 
 if __name__ == "__main__":
