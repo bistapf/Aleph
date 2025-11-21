@@ -192,6 +192,7 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base, year="1994
         #set plotting properties:
         data_tmp_hist.SetTitle(data_proc.title)
         data_tmp_hist.SetLineColor(data_proc.colour_key)
+        data_tmp_hist.SetMarkerStyle(ROOT.kFullCircle)
 
         # make summed up histogram of all samples in the process
         if not data_hist: 
@@ -268,7 +269,7 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base, year="1994
     pad_up.cd()
 
     mc_stack.Draw("hist")
-    data_hist.Draw("hist same")
+    data_hist.Draw("E0P same")
 
     #axes:
     mc_stack.SetMinimum(1.e0)
@@ -286,7 +287,7 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base, year="1994
     Text.SetNDC(ROOT.kTRUE) 
     Text.SetTextSize(0.025) 
     Text.DrawLatex(0.17, 0.95, "#it{ALEPH data and simulation}") 
-    lumi_tag = "#bf{{ #sqrt{{s}} = {:.0f} GeV, L = {:.0f} pb^{{-1}} }}".format(91., lumi)
+    lumi_tag = "#bf{{ #sqrt{{s}} = {:.0f} GeV, L = {:.2f} pb^{{-1}} }}".format(91., lumi)
     Text.DrawLatex(0.17, 0.9, lumi_tag)
     ana_tag = "#bf{{ {} , {} }}".format(year, sel_tag)
     Text.DrawLatex(0.17, 0.85, ana_tag)
@@ -298,7 +299,7 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base, year="1994
     leg = ROOT.TLegend(0.6, 0.95 - legsize, 0.95, 0.95)
     for mc_hist in reversed(mc_hists_list):
         leg.AddEntry(mc_hist, mc_hist.GetTitle(), "f")
-    leg.AddEntry(data_hist, data_hist.GetTitle(), "l")
+    leg.AddEntry(data_hist, data_hist.GetTitle(), "ep")
 
     leg.SetFillStyle( 0 )
     leg.SetBorderSize( 0 )
@@ -403,12 +404,14 @@ if __name__ == "__main__":
     data = Zqq_processes.zqq_data["data"]
     mc_processes = Zqq_processes.MC_group_light_jets
 
+    ratio_range = (0., 2.)
+
     for plot_name, plot_specs in plots_dict.items():
         print(plot_name, plot_specs)
 
         make_plot(plot_specs, inputs_stage1, data, mc_processes, outdir_plots, year="1994", sel_tag ="Selected events",
               weighted=False, store_root_file=False, out_format = ".png", do_log_y=True, lumi=57.89, 
-              addOverlow=False, fix_ratio_range=() )
+              addOverlow=False, fix_ratio_range=ratio_range )
     
     exit()
 
