@@ -1,6 +1,4 @@
-# script to plot data and MC from ALEPH
-
-#temp: currently reads from FCCAna final ntuples
+# Script to plot data and MC from ALEPH
 
 import ROOT
 import os 
@@ -11,8 +9,7 @@ import numpy
 from argparse import ArgumentParser
 import json
 
-import Zqq_plots 
-import Zqq_processes 
+from plotting_config_stage1 import PlottingConfig
 
 ROOT.gROOT.SetBatch()
 ROOT.gStyle.SetOptTitle(0)
@@ -165,9 +162,11 @@ def get_hist_from_tree(proc_name, input_filepath, hist_var, hist_nbins, hist_xmi
     return hist_to_add
 
 # function to draw all the things #todo: add back support for applying extra cut?
-def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base, year="1994", sel_tag ="Selected events",
-              weighted=False, store_root_file=False, out_format = ".png", do_log_y=True, lumi=57.89, 
-              addOverlow=False, fix_ratio_range=(), ):
+def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base, 
+              year="", sel_tag ="", lumi=1., ecm=1.,
+              do_log_y=True, add_overflow=False, fix_ratio_range=(), weighted=False,
+              out_format = ".png", store_root_file=False,   
+              ):
 
     print("Plotting", plot.name)
 
@@ -186,7 +185,7 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base, year="1994
             continue
 
         #move into get_hsito function!
-        if addOverlow:
+        if add_overflow:
             addOverflowToLastBin(data_tmp_hist)
         
         #set plotting properties:
@@ -220,7 +219,7 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base, year="1994
                 continue
 
             #move into get_hsito function!
-            if addOverlow:
+            if add_overflow:
                 addOverflowToLastBin(tmp_hist)
 
             #set plotting properties:
@@ -287,7 +286,7 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base, year="1994
     Text.SetNDC(ROOT.kTRUE) 
     Text.SetTextSize(0.025) 
     Text.DrawLatex(0.17, 0.95, "#it{ALEPH data and simulation}") 
-    lumi_tag = "#bf{{ #sqrt{{s}} = {:.0f} GeV, L = {:.2f} pb^{{-1}} }}".format(91., lumi)
+    lumi_tag = "#bf{{ #sqrt{{s}} = {:.0f} GeV, L = {:.2f} pb^{{-1}} }}".format(ecm, lumi)
     Text.DrawLatex(0.17, 0.9, lumi_tag)
     ana_tag = "#bf{{ {} , {} }}".format(year, sel_tag)
     Text.DrawLatex(0.17, 0.85, ana_tag)
@@ -393,25 +392,15 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base, year="1994
 
 if __name__ == "__main__":
 
-    outdir_plots= "./plots_data_mc_zqq_test/"
-    
-    inputs_stage1 = "/eos/user/h/hfatehi/D0fliped-good/"
-    input_filebase = "/eos/experiment/fcc/ee/analyses/case-studies/aleph/ntuples_final/"
 
-    sel_level ="sel0_jetPt"
-
-    plots_dict = Zqq_plots.Zqq_data_MC_vars
-    data = Zqq_processes.zqq_data["data"]
-    mc_processes = Zqq_processes.MC_group_light_jets
-
-    ratio_range = (0., 2.)
-
-    for plot_name, plot_specs in plots_dict.items():
+    for plot_name, plot_specs in PlottingConfig.plots_dict.items():
         print(plot_name, plot_specs)
 
-        make_plot(plot_specs, inputs_stage1, data, mc_processes, outdir_plots, year="1994", sel_tag ="Selected events",
-              weighted=False, store_root_file=False, out_format = ".png", do_log_y=True, lumi=57.89, 
-              addOverlow=False, fix_ratio_range=ratio_range )
+        make_plot(plot_specs, PlottingConfig.inputs_path, PlottingConfig.data, PlottingConfig.mc_processes, PlottingConfig.outputs_path, 
+              year=PlottingConfig.year, sel_tag =PlottingConfig.sel_tag, lumi=PlottingConfig.lumi, ecm=PlottingConfig.ecm,
+              do_log_y=PlottingConfig.do_log_y, add_overflow=PlottingConfig.add_overflow, fix_ratio_range=PlottingConfig.ratio_range, 
+              weighted=PlottingConfig.weighted, out_format=PlottingConfig.out_format, store_root_file=PlottingConfig.store_root_file
+           )
     
     exit()
 
