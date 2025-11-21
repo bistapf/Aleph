@@ -21,6 +21,7 @@ class PlottingConfig:
     sel_tag = "Selected events"
     lumi = 57.89 # in pb-1
     ecm = 91. # in GeV
+    norm_file = "normalisation.json" # json file with the cross-section information, following FCCAnalyses format
 
     # Plotting style settings:
     do_log_y = True

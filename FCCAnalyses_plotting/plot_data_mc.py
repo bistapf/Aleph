@@ -95,26 +95,48 @@ def get_rdf(input_filepath):
 
     return rdf
 
-def getNormFactor(sample, proc_dict_path = "/afs/cern.ch/user/b/bistapf/ALEPH_data_project/Aleph/FCCAnalyses_plotting/normalisation.json", 
-                  weighted=False, lumi=57.89, print_debug=False):
+def get_param_value_from_file(param_name, filepath):
+    param_value = 1.
+
+    inputfile = ROOT.TFile.Open(filepath, "READ")
+    if not inputfile or inputfile.IsZombie():
+        print(f"File {filepath} is not a valid ROOT file. Cannot read paramValue for normalisation. Skipping.")
+        return param_value 
+    
+    if not inputfile.GetListOfKeys().Contains(param_name):
+        raise KeyError(f"TParameter '{param_name}' not found in file '{filepath}'")
+    
+    param_value = inputfile.Get(param_name).GetVal()
+
+    inputfile.Close()
+    return param_value
+
+def get_norm_factor(sample, filepath, norm_file, weighted=False, lumi=1., print_debug=False):
+
     norm_factor = -1.
 
-    #read x-section etc from the json file:
-    if '.json' in proc_dict_path:
-        with open(proc_dict_path, 'r') as dict_file:
+    # Read the cross-section and its correction factors from the .json file
+    if '.json' in norm_file:
+        with open(norm_file, 'r') as dict_file:
             proct_dict = json.load(dict_file)
     else:
-        raise Exception("Error in getNormFactor: Only support .json files for the cross-section values currently!")
+        raise Exception("Error in get_norm_factor: Only support .json files for the cross-section values currently!")
 
+    # For the total number of events generated or sum of weights, read them from the file (input needs to be ntuple produced with FCCAnalyses!)
     if weighted:
-        norm_factor = lumi*proct_dict[sample]["crossSection"]*proct_dict[sample]["kfactor"]*proct_dict[sample]["matchingEfficiency"]/proct_dict[sample]["sumOfWeights"]
-        print("used sum of weights", proct_dict[sample]["sumOfWeights"])
+        total_sow = get_param_value_from_file("SumOfWeights", filepath)
+        norm_factor = lumi*proct_dict[sample]["crossSection"]*proct_dict[sample]["kfactor"]*proct_dict[sample]["matchingEfficiency"]/total_sow
     else:
-        norm_factor = lumi*proct_dict[sample]["crossSection"]*proct_dict[sample]["kfactor"]*proct_dict[sample]["matchingEfficiency"]/proct_dict[sample]["numberOfEvents"]
-    
+        total_nevts = get_param_value_from_file("eventsProcessed", filepath)
+        norm_factor = lumi*proct_dict[sample]["crossSection"]*proct_dict[sample]["kfactor"]*proct_dict[sample]["matchingEfficiency"]/total_nevts
+
     if print_debug:
         print(f"{sample} - built normfactor from:")
-        print("#evts = ", proct_dict[sample]["numberOfEvents"])
+        if weighted:
+            print("sum of weights = ", total_sow)
+        else:
+            print("total nevts = ", total_nevts)
+
         print("x-sec = ", proct_dict[sample]["crossSection"])
         print("k-factor = ", proct_dict[sample]["kfactor"])
         print("match-eff = ", proct_dict[sample]["matchingEfficiency"])
@@ -122,13 +144,19 @@ def getNormFactor(sample, proc_dict_path = "/afs/cern.ch/user/b/bistapf/ALEPH_da
         print("norm_factor = ", norm_factor)
 
     if norm_factor < 0:
-        raise Exception("Error in getNormFactor: Probably missing a factor in the normalisation ...")
+        raise Exception("Error in get_norm_factor: Probably missing a factor in the normalisation ...")
 
     return norm_factor
 
 
-def get_hist_from_tree(proc_name, input_filepath, hist_var, hist_nbins, hist_xmin, hist_xmax, 
-                       is_data= False, add_overflow=False):
+def get_hist_from_tree(proc_name, input_filepath, hist_var, hist_nbins, hist_xmin, hist_xmax, norm_file=None,
+                       lumi=1., is_data= False, add_overflow=False, weighted=False):
+
+    if is_data and weighted:
+        raise Exception("Incompatible options in get_hist_from_tree() : is_data and weighted (MC weights) both true.")
+    
+    if not norm_file and not is_data:
+        raise Exception("Error in get_hist_from_tree() on MC: no json file with normalisation info provided!")
 
     #going to need a TH1Model to fill:
     has_variable_binning = False
@@ -152,7 +180,7 @@ def get_hist_from_tree(proc_name, input_filepath, hist_var, hist_nbins, hist_xmi
 
     # scale MC with xsec and lumi
     if not is_data:
-        norm_factor = getNormFactor(proc_name)
+        norm_factor = get_norm_factor(proc_name, input_filepath, norm_file, weighted=weighted, lumi=lumi )
         tmp_hist.Scale(norm_factor)
 
     print("{} \t {:.2f}".format(proc_name, tmp_hist.Integral()))
@@ -163,7 +191,7 @@ def get_hist_from_tree(proc_name, input_filepath, hist_var, hist_nbins, hist_xmi
 
 # function to draw all the things #todo: add back support for applying extra cut?
 def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base, 
-              year="", sel_tag ="", lumi=1., ecm=1.,
+              year="", sel_tag ="", lumi=1., ecm=1., norm_file=None,
               do_log_y=True, add_overflow=False, fix_ratio_range=(), weighted=False,
               out_format = ".png", store_root_file=False,   
               ):
@@ -179,7 +207,7 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base,
         data_filepath = os.path.join(input_dir, f"{data_file}.root")
         print(f"Looking for data file: {data_file} in {data_filepath}")
         data_tmp_hist = get_hist_from_tree(data_file, data_filepath, plot.name, plot.nbins, plot.xmin, plot.xmax, 
-                                           is_data= True, add_overflow=add_overflow)
+                                           is_data= True, add_overflow=add_overflow) #dont need a norm file, nor weights for data
 
         #skip if nothing passes selection:
         if not data_tmp_hist.GetEntries():
@@ -208,8 +236,8 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base,
             filepath = os.path.join(input_dir, f"{sample}.root")
             print(f"Looking for MC sample: {sample} in {filepath}")
             
-            tmp_hist = get_hist_from_tree(sample, filepath, plot.name, plot.nbins, plot.xmin, plot.xmax , 
-                                          is_data= False, add_overflow=add_overflow)
+            tmp_hist = get_hist_from_tree(sample, filepath, plot.name, plot.nbins, plot.xmin, plot.xmax, norm_file=norm_file,
+                                          lumi=lumi, is_data= False, add_overflow=add_overflow, weighted=weighted)
 
             #skip if nothing passes selection:
             if not tmp_hist.GetEntries():
@@ -391,7 +419,7 @@ if __name__ == "__main__":
         print(plot_name, plot_specs)
 
         make_plot(plot_specs, PlottingConfig.inputs_path, PlottingConfig.data, PlottingConfig.mc_processes, PlottingConfig.outputs_path, 
-              year=PlottingConfig.year, sel_tag =PlottingConfig.sel_tag, lumi=PlottingConfig.lumi, ecm=PlottingConfig.ecm,
+              year=PlottingConfig.year, sel_tag =PlottingConfig.sel_tag, lumi=PlottingConfig.lumi, ecm=PlottingConfig.ecm, norm_file=PlottingConfig.norm_file,
               do_log_y=PlottingConfig.do_log_y, add_overflow=PlottingConfig.add_overflow, fix_ratio_range=PlottingConfig.ratio_range, 
               weighted=PlottingConfig.weighted, out_format=PlottingConfig.out_format, store_root_file=PlottingConfig.store_root_file
            )
