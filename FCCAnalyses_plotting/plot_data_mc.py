@@ -127,7 +127,8 @@ def getNormFactor(sample, proc_dict_path = "/afs/cern.ch/user/b/bistapf/ALEPH_da
     return norm_factor
 
 
-def get_hist_from_tree(proc_name, input_filepath, hist_var, hist_nbins, hist_xmin, hist_xmax, is_data= False):
+def get_hist_from_tree(proc_name, input_filepath, hist_var, hist_nbins, hist_xmin, hist_xmax, 
+                       is_data= False, add_overflow=False):
 
     #going to need a TH1Model to fill:
     has_variable_binning = False
@@ -141,16 +142,15 @@ def get_hist_from_tree(proc_name, input_filepath, hist_var, hist_nbins, hist_xmi
     else:
         hist_model = ROOT.RDF.TH1DModel(f"hist_{hist_var}", f"hist_{hist_var}", hist_nbins, hist_xmin, hist_xmax)
 
-    # print(f"Reading from file {input_filepath}")
-
+    # get the dataframe and fill the histogram model
     rdf = get_rdf(input_filepath)
-    if not rdf:
-        print("File ", input_filepath, " is empty, error ...")
-        exit()
 
     tmp_hist = rdf.Histo1D(hist_model, hist_var).GetValue() # DO NOT USE WEIGHTS
 
-    #scale MC with xsec and lumi!
+    if add_overflow:
+        addOverflowToLastBin(tmp_hist)
+
+    # scale MC with xsec and lumi
     if not is_data:
         norm_factor = getNormFactor(proc_name)
         tmp_hist.Scale(norm_factor)
@@ -171,23 +171,21 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base,
     print("Plotting", plot.name)
 
     if weighted:
-        print("Applying MC events weights")
+        print("Applying generator event weights to MC")
     
     #get data histogram
     data_hist = None
     for data_file in data_proc.sample_list:
         data_filepath = os.path.join(input_dir, f"{data_file}.root")
-        data_tmp_hist = get_hist_from_tree(data_file, data_filepath, plot.name, plot.nbins, plot.xmin, plot.xmax, is_data= True)
+        print(f"Looking for data file: {data_file} in {data_filepath}")
+        data_tmp_hist = get_hist_from_tree(data_file, data_filepath, plot.name, plot.nbins, plot.xmin, plot.xmax, 
+                                           is_data= True, add_overflow=add_overflow)
 
         #skip if nothing passes selection:
         if not data_tmp_hist.GetEntries():
             print("Empty histogram for:", data_file, " Skipping.")
             continue
 
-        #move into get_hsito function!
-        if add_overflow:
-            addOverflowToLastBin(data_tmp_hist)
-        
         #set plotting properties:
         data_tmp_hist.SetTitle(data_proc.title)
         data_tmp_hist.SetLineColor(data_proc.colour_key)
@@ -207,20 +205,16 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base,
         #loop over files in our mc process and get each histogram, then add them together
         mc_proc_hist = None
         for sample in mc_processes[proc].sample_list:
-            print(f"Looking for MC sample: {sample}")
             filepath = os.path.join(input_dir, f"{sample}.root")
-            print(filepath)
+            print(f"Looking for MC sample: {sample} in {filepath}")
             
-            tmp_hist = get_hist_from_tree(sample, filepath, plot.name, plot.nbins, plot.xmin, plot.xmax , is_data= False)
+            tmp_hist = get_hist_from_tree(sample, filepath, plot.name, plot.nbins, plot.xmin, plot.xmax , 
+                                          is_data= False, add_overflow=add_overflow)
 
             #skip if nothing passes selection:
             if not tmp_hist.GetEntries():
                 print("Empty histogram for:", sample, " Skipping.")
                 continue
-
-            #move into get_hsito function!
-            if add_overflow:
-                addOverflowToLastBin(tmp_hist)
 
             #set plotting properties:
             tmp_hist.SetTitle(mc_processes[proc].title)
@@ -392,7 +386,7 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base,
 
 if __name__ == "__main__":
 
-
+    # loop over all plots : check the config imported for details
     for plot_name, plot_specs in PlottingConfig.plots_dict.items():
         print(plot_name, plot_specs)
 
@@ -402,76 +396,4 @@ if __name__ == "__main__":
               weighted=PlottingConfig.weighted, out_format=PlottingConfig.out_format, store_root_file=PlottingConfig.store_root_file
            )
     
-    exit()
-
-
-    #use the makeplot
-    
-    
-    #get the data histogram 
-    data_proc = 'Znn'
-
-    histo_name = 'event_invariant_mass'
-    histo_nbins = 70
-    histo_xmin = 50.
-    histo_xmax = 120.
-    histo_xlabel = "m_{jj} in GeV"
-    
-    data_filepath = os.path.join(input_filebase, f"{data_proc}_{sel_level}.root")
-    data_hist = get_hist_from_tree("data", data_filepath, histo_name, histo_nbins, histo_xmin, histo_xmax, is_data= True)
-
-    mc_dict={
-        #name:(sample_list, label)
-        'Zbb':(['Zbb'], "b-jets"),
-        'Zcc':(['Zcc'], "c-jets"),
-        'Zudsuds':(['Zss', 'Zuu', 'Zdd'], "light jets"),
-    }
-    mc_stack = ROOT.THStack("mc_stack", "mc_stack")
-
-    for mc_proc, (mc_sample_list, mc_label) in mc_dict.items():
-        print(mc_label, mc_sample_list)
-
-        hist_mc_proc = None
-        tot_hist_template = ROOT.TH1D(f"tot_hist_{mc_proc}", f"tot_hist_{mc_proc}", histo_nbins, histo_xmin, histo_xmax)
-
-        for mc_sample in mc_sample_list:
-            mc_sample_filepath = os.path.join(input_filebase, f"{mc_sample}_{sel_level}.root")
-            mc_hist_proc = get_hist_from_tree(mc_sample, mc_sample_filepath, histo_name, histo_nbins, histo_xmin, histo_xmax, is_data= False)
-            tot_hist_template.Add(mc_hist_proc)
-
-        hist_mc_proc = copy.deepcopy(tot_hist_template)
-        hist_mc_proc.SetTitle(mc_label)
-
-        mc_stack.Add(hist_mc_proc)
-    
-    #test draw:
-    canvas = ROOT.TCanvas("canvas", "canvas", 800, 800) 
-    canvas.SetLogy(True)
-    canvas.cd()
-
-    mc_stack.Draw("HIST")
-    data_hist.Draw("HIST SAME")
-
-    canvas.SaveAs("test.png")
-
-
-
-
-    #print total data and MC
-    data_evts = data_hist.Integral()
-    mc_evts = mc_stack.GetStack().Last().Integral()
-
-    print(f"Data events = {data_evts}")
-    print(f"MC events = {mc_evts}")
-    print(f"Average data/MC ratio = {data_evts/mc_evts}")
-    print(f"Average MC/data ratio = {mc_evts/data_evts}")
-    
-
-
-
-        #     # print("Adding hists to stack:", hist_ttyy_bkg.GetTitle(), hist_vyy_bkg.GetTitle() )
-        
-        
-        # hs_bkgs.Add(hist_vyy_bkg)
-        # hs_bkgs.Add(hist_ttyy_bkg)
 
