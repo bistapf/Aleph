@@ -295,7 +295,7 @@ def make_plot(plot, input_dir, data_proc, mc_processes, out_dir_base,
 
     #axes:
     mc_stack.SetMinimum(1.e0)
-    mc_stack.SetMaximum(1.e6)
+    mc_stack.SetMaximum(1.e7)
     mc_stack.GetYaxis().SetTitle("Events")
     mc_stack.GetXaxis().SetLabelSize(0)
     data_hist.GetXaxis().SetTitle(plot.label)
@@ -398,8 +398,6 @@ if __name__ == "__main__":
 
     # loop over all plots : check the config imported for details
     for plot_name, plot_specs in PlottingConfig.plots_dict.items():
-        print(plot_name, plot_specs)
-
         make_plot(plot_specs, PlottingConfig.inputs_path, PlottingConfig.data, PlottingConfig.mc_processes, PlottingConfig.outputs_path, 
               year=PlottingConfig.year, sel_tag =PlottingConfig.sel_tag, lumi=PlottingConfig.lumi, ecm=PlottingConfig.ecm, norm_file=PlottingConfig.norm_file,
               do_log_y=PlottingConfig.do_log_y, add_overflow=PlottingConfig.add_overflow, fix_ratio_range=PlottingConfig.ratio_range, 

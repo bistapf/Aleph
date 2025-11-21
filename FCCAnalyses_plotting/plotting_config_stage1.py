@@ -31,4 +31,4 @@ class PlottingConfig:
 
     # Output file settings:
     out_format = ".png"
-    store_root_file= True #if true a ROOT file of the plotted histograms is written that can be used by e.g. combine for fitting
+    store_root_file= False #if true a ROOT file of the plotted histograms is written that can be used by e.g. combine for fitting
