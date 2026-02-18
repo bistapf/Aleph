@@ -77,7 +77,9 @@ class Analysis():
             output_name = outnames_dict[self.ana_args.MCtype][self.ana_args.MCflavour]
 
             self.process_list = {
-                "QQB" : {"fraction" : self.ana_args.fraction, "output":output_name},           
+                # "QQB" : {"fraction" : self.ana_args.fraction, "output":output_name},   
+                # ZM4212_39_AL.root        
+                "QQB/ZM4212_39_AL" : {"fraction" : self.ana_args.fraction, "output":"ntuple_valid_tester_{}".format(self.ana_args.MCflavour)},           
             }
 
         #set run options:
@@ -111,6 +113,8 @@ class Analysis():
         
         # store the classbitset in the output
         df = df.Define("event_class", "AlephSelection::bitsetToIndices(ClassBitset)")
+        df = df.Define("event_number", "EventHeader.eventNumber")
+        df = df.Define("run_number", "EventHeader.runNumber")
 
         # Define RP kinematics
         ####################################################################################################
@@ -161,6 +165,10 @@ class Analysis():
 
         df = df.Define("n_tracks_sel_vertexfit", "tracks_selected_for_vertexfit.size()")
 
+        # need to flip the sign of d0 and omega (why??)
+        df = df.Define("trackstates_selected_for_vertexfit_flipped","AlephSelection::flipD0_copy(trackstates_selected_for_vertexfit )")
+        df = df.Define("trackstates_selected_baseline_flipped","AlephSelection::flipD0_copy(trackstates_selected_baseline )")
+
         # ===== VERTEX
 
         # run primary vertex fit using FCCAna native fitter 
@@ -171,14 +179,14 @@ class Analysis():
         res_y_loose = 100. # in um
         res_z_loose = 2. # in cm
 
-        chi2max = 5. # the maximum chi2 under which tracks are compatible with vertex fit
+        chi2max = 5. # the maximum chi2 under which tracks are compatible with vertex fit 
 
-        df = df.Define("RecoedPrimaryTracks_looseBS", "VertexFitterSimple::get_PrimaryTracks(trackstates_selected_for_vertexfit, true, {},{},{},0.,0.,0., {})".format(res_x_loose/10., res_y_loose/10., res_z_loose*1E03, chi2max)) # 10um as unit (x,y), 1cm as unit (z)
+        df = df.Define("RecoedPrimaryTracks_looseBS", "VertexFitterSimple::get_PrimaryTracks(trackstates_selected_for_vertexfit_flipped, true, {},{},{},0.,0.,0., {})".format(res_x_loose/10., res_y_loose/10., res_z_loose*1E03, chi2max)) # 10um as unit (x,y), 1cm as unit (z)
         df = df.Define("VertexObject_looseBS", "VertexFitterSimple::VertexFitter_Tk(1, RecoedPrimaryTracks_looseBS, true, {},{},{},0.,0.,0.)".format(res_x_loose/10., res_y_loose/10., res_z_loose*1E03)) # 10um as unit (x,y), 1cm as unit (z)
         df = df.Define("Vertex_refit_looseBS", "VertexingUtils::get_VertexData(VertexObject_looseBS)")
         df = df.Define("Vertex_refit_tlv", "TLorentzVector(Vertex_refit_looseBS.position.x, Vertex_refit_looseBS.position.y, Vertex_refit_looseBS.position.z, 0.)")
         # for retrieving secondary tracks, use the full list of selected tracks 
-        df = df.Define("SecondaryTracks_looseBS", "VertexFitterSimple::get_NonPrimaryTracks(trackstates_selected_baseline, RecoedPrimaryTracks_looseBS)")
+        df = df.Define("SecondaryTracks_looseBS", "VertexFitterSimple::get_NonPrimaryTracks(trackstates_selected_baseline_flipped, RecoedPrimaryTracks_looseBS)")
 
         df = df.Define("Vertex_refit_x", "Vertex_refit_looseBS.position.x")
         df = df.Define("Vertex_refit_y", "Vertex_refit_looseBS.position.y")
@@ -186,6 +194,16 @@ class Analysis():
 
         df = df.Define("n_primary_tracks", "ReconstructedParticle2Track::getTK_n(RecoedPrimaryTracks_looseBS)")
         df = df.Define("n_secondary_tracks", "ReconstructedParticle2Track::getTK_n(SecondaryTracks_looseBS)")
+
+        # for comparison test, fit vertex with tracks all tracks:
+        # df = df.Define("RecoedPrimaryTracks_looseBS_all_tracks", "VertexFitterSimple::get_PrimaryTracks(_Tracks_trackStates, true, {},{},{},0.,0.,0., {})".format(res_x_loose/10., res_y_loose/10., res_z_loose*1E03, chi2max)) # 10um as unit (x,y), 1cm as unit (z)
+        # df = df.Define("VertexObject_looseBS_all_tracks", "VertexFitterSimple::VertexFitter_Tk(1, RecoedPrimaryTracks_looseBS_all_tracks, true, {},{},{},0.,0.,0.)".format(res_x_loose/10., res_y_loose/10., res_z_loose*1E03)) # 10um as unit (x,y), 1cm as unit (z)
+        # df = df.Define("Vertex_refit_looseBS_all_tracks", "VertexingUtils::get_VertexData(VertexObject_looseBS_all_tracks)")
+        # df = df.Define("Vertex_refit_tlv_all_tracks", "TLorentzVector(Vertex_refit_looseBS_all_tracks.position.x, Vertex_refit_looseBS_all_tracks.position.y, Vertex_refit_looseBS_all_tracks.position.z, 0.)")
+
+        # df = df.Define("Vertex_refit_x_all_tracks", "Vertex_refit_looseBS_all_tracks.position.x")
+        # df = df.Define("Vertex_refit_y_all_tracks", "Vertex_refit_looseBS_all_tracks.position.y")
+        # df = df.Define("Vertex_refit_z_all_tracks", "Vertex_refit_looseBS_all_tracks.position.z")
 
         # for reference: vertex as stored - can be removed?
         df = df.Define(
@@ -195,6 +213,24 @@ class Analysis():
         df = df.Define("VertexX", "Vertices.position.x")
         df = df.Define("VertexY", "Vertices.position.y")
         df = df.Define("VertexZ", "Vertices.position.z")
+
+
+        # gen level vertex for checks: 
+        df = df.Define("pv_gen_level", f'AlephSelection::get_EventPrimaryVertexP4()({coll["GenParticles"]})')
+        df = df.Define("gen_vertex_x", "pv_gen_level.X()")
+        df = df.Define("gen_vertex_y", "pv_gen_level.Y()")
+        df = df.Define("gen_vertex_z", "pv_gen_level.Z()")
+
+        # refit vertex resolution:
+        df = df.Define("res_vertex_x", "Vertex_refit_x - gen_vertex_x")
+        df = df.Define("res_vertex_y", "Vertex_refit_y - gen_vertex_y")
+        df = df.Define("res_vertex_z", "Vertex_refit_z - gen_vertex_z")
+
+        # check without track selection
+        # df = df.Define("res_vertex_x_all_tracks", "Vertex_refit_x_all_tracks - gen_vertex_x")
+        # df = df.Define("res_vertex_y_all_tracks", "Vertex_refit_y_all_tracks - gen_vertex_y")
+        # df = df.Define("res_vertex_z_all_tracks", "Vertex_refit_z_all_tracks - gen_vertex_z")
+
 
         ############################################# Particle Flow Level Variables #######################################################
         df = df.Define("pfcand_isMu",     "AlephSelection::get_isType(jetConstitutentsTypes,2)")
@@ -365,6 +401,8 @@ class Analysis():
 
             # Event variables
             "event_class",
+            "event_number",
+            "run_number",
             #"event_type",
             "event_invariant_mass",
             "event_njet",  
@@ -378,6 +416,20 @@ class Analysis():
             "Vertex_refit_x",
             "Vertex_refit_y",
             "Vertex_refit_z",
+
+            # gen level vertex & resolutions
+            "gen_vertex_x",
+            "gen_vertex_y",
+            "gen_vertex_z",
+
+            # vertex resolution
+            "res_vertex_x",
+            "res_vertex_y",
+            "res_vertex_z",
+            
+            # "res_vertex_x_all_tracks",
+            # "res_vertex_y_all_tracks",
+            # "res_vertex_z_all_tracks",
 
             # Track variables
             "n_tracks_all",
