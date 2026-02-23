@@ -20,6 +20,12 @@ class Analysis():
                             1 = dd, 2 = uu, 3 = ss, 4 = cc, 5 = bb')
         parser.add_argument('--fraction', default=1.0, type=float,
                             help='Fraction of events to run, default is 1.0 = 100%')
+        parser.add_argument('--batch', action='store_true', 
+                            help='Submit to HTCondor batch')
+        parser.add_argument('--valid', action='store_true', 
+                            help='Run tester file only for validation against Lukas ntuples.')
+        parser.add_argument('--chunks', default=None, type=int,
+                            help='Number of chunks per process/file')
         # Parse additional arguments not known to the FCCAnalyses parsers
         # All command line arguments know to fccanalysis are provided in the
         # `cmdline_arg` dictionary.
@@ -63,7 +69,8 @@ class Analysis():
         #set the input/output directories:
         if self.ana_args.doData:
             self.input_dir = "/eos/experiment/fcc/ee/analyses/case-studies/aleph/LEP1_DATA/"
-            self.output_dir = f"/eos/experiment/fcc/ee/analyses/case-studies/aleph/processedData/{self.ana_args.year}/stage1/{self.ana_args.tag}"
+            self.output_dir_eos = f"/eos/experiment/fcc/ee/analyses/case-studies/aleph/processedData/{self.ana_args.year}/stage1/{self.ana_args.tag}"
+            self.output_dir = "."
             
             self.process_list = {
                 "1994" : {"fraction" : self.ana_args.fraction},           
@@ -72,19 +79,53 @@ class Analysis():
         else:
             self.input_dir = f"/eos/experiment/aleph/EDM4HEP/MC/{self.ana_args.year}/"
             self.output_dir = f"/eos/experiment/fcc/ee/analyses/case-studies/aleph/processedMC/{self.ana_args.year}/{self.ana_args.MCtype}/stage1/{self.ana_args.tag}"
+            # self.output_dir = "."
 
             #set the output file name depending on resonance flavour 
             output_name = outnames_dict[self.ana_args.MCtype][self.ana_args.MCflavour]
 
-            self.process_list = {
-                # "QQB" : {"fraction" : self.ana_args.fraction, "output":output_name},   
-                # ZM4212_39_AL.root        
-                "QQB/ZM4212_39_AL" : {"fraction" : self.ana_args.fraction, "output":"ntuple_valid_tester_{}".format(self.ana_args.MCflavour)},           
-            }
+            # for now run only one tester file when running locally:
+            if self.ana_args.batch:
+
+                self.output_dir_eos = f"/eos/experiment/fcc/ee/analyses/case-studies/aleph/processedMC/{self.ana_args.year}/{self.ana_args.MCtype}/stage1/{self.ana_args.tag}"
+                self.output_dir = "."
+                
+                #TODO: chunks doesn't really work with custom outname ... 
+                if self.ana_args.chunks:
+                    self.process_list = {
+                        "QQB" : {"fraction" : self.ana_args.fraction, "output":output_name, "chunks":self.ana_args.chunks},        
+                    }
+                else:
+                    self.process_list = {
+                        "QQB" : {"fraction" : self.ana_args.fraction, "output":output_name},        
+                    }
+
+                self.n_threads = 8
+            
+            else:
+                #local tester for validation
+                if self.ana_args.valid:
+
+                    self.process_list = { 
+                        "QQB/ZM4212_39_AL" : {"fraction" : self.ana_args.fraction, "output":"ntuple_valid_tester_{}".format(self.ana_args.MCflavour)},           
+                    }
+                
+                #process full files: 
+                else:
+                    self.process_list = {
+                            "QQB" : {"fraction" : self.ana_args.fraction, "output":output_name},        
+                        }
+
+            
+                self.n_threads = 32 
+
 
         #set run options:
-        self.n_threads = 32 
+        
         self.include_paths = ["analyzer.h"]
+
+        # #submit to batch if requested:
+        # self.run_batch = self.ana_args.batch # no longer supported
 
     def analyzers(self, df):
 
@@ -179,7 +220,7 @@ class Analysis():
         res_y_loose = 100. # in um
         res_z_loose = 2. # in cm
 
-        chi2max = 5. # the maximum chi2 under which tracks are compatible with vertex fit 
+        chi2max = 25. # the maximum chi2 under which tracks are compatible with vertex fit 
 
         df = df.Define("RecoedPrimaryTracks_looseBS", "VertexFitterSimple::get_PrimaryTracks(trackstates_selected_for_vertexfit_flipped, true, {},{},{},0.,0.,0., {})".format(res_x_loose/10., res_y_loose/10., res_z_loose*1E03, chi2max)) # 10um as unit (x,y), 1cm as unit (z)
         df = df.Define("VertexObject_looseBS", "VertexFitterSimple::VertexFitter_Tk(1, RecoedPrimaryTracks_looseBS, true, {},{},{},0.,0.,0.)".format(res_x_loose/10., res_y_loose/10., res_z_loose*1E03)) # 10um as unit (x,y), 1cm as unit (z)
@@ -213,6 +254,9 @@ class Analysis():
         df = df.Define("VertexX", "Vertices.position.x")
         df = df.Define("VertexY", "Vertices.position.y")
         df = df.Define("VertexZ", "Vertices.position.z")
+
+        # TEST FILTER         
+        df = df.Filter("Vertices.size() > 0")  # to remove eventually
 
 
         # gen level vertex for checks: 
