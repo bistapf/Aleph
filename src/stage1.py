@@ -88,9 +88,9 @@ class Analysis():
             if self.ana_args.batch:
 
                 self.output_dir_eos = f"/eos/experiment/fcc/ee/analyses/case-studies/aleph/processedMC/{self.ana_args.year}/{self.ana_args.MCtype}/stage1/{self.ana_args.tag}"
-                self.output_dir = "."
+                self.output_dir = output_name
                 
-                #TODO: chunks doesn't really work with custom outname ... 
+                #split in chunks or not (if works well should make this default)
                 if self.ana_args.chunks:
                     self.process_list = {
                         "QQB" : {"fraction" : self.ana_args.fraction, "output":output_name, "chunks":self.ana_args.chunks},        
