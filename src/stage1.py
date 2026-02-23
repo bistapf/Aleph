@@ -176,7 +176,8 @@ class Analysis():
         df = df.Define("_jetc", "JetClusteringUtils::get_constituents(_jet)") 
         df = df.Define("jetc", "JetConstituentsUtils::build_constituents_cluster(RecoParticles, _jetc)")
         df = df.Define("jetConstitutentsTypes", f"AlephSelection::build_constituents_Types()(ParticleID, _jetc)")
-
+        df = df.Define("JetClustering_d23", "std::sqrt(JetClusteringUtils::get_exclusive_dmerge(_jet, 2))")
+        df = df.Define("JetClustering_d34", "std::sqrt(JetClusteringUtils::get_exclusive_dmerge(_jet, 3))")
         ############################################# Event Level Variables #######################################################
         df = df.Define("jet_p4", "JetConstituentsUtils::compute_tlv_jets(jets)" )
         df = df.Define("event_invariant_mass", "JetConstituentsUtils::InvariantMass(jet_p4[0], jet_p4[1])")
@@ -485,6 +486,8 @@ class Analysis():
             "chi2_o_ndf_tracks_all",
 
             # Jet variables
+            "JetClustering_d23",
+            "JetClustering_d34", 
             "jet_mass",
             "jet_p",
             "jet_e", 
