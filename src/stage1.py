@@ -194,6 +194,7 @@ class Analysis():
         df = df.Define("jetConstitutentsTypes", f"AlephSelection::build_constituents_Types()(ParticleID, _jetc)")
         df = df.Define("JetClustering_d23", "std::sqrt(JetClusteringUtils::get_exclusive_dmerge(_jet, 2))")
         df = df.Define("JetClustering_d34", "std::sqrt(JetClusteringUtils::get_exclusive_dmerge(_jet, 3))")
+
         ############################################# Event Level Variables #######################################################
         df = df.Define("jet_p4", "JetConstituentsUtils::compute_tlv_jets(jets)" )
         df = df.Define("event_invariant_mass", "JetConstituentsUtils::InvariantMass(jet_p4[0], jet_p4[1])")
@@ -302,6 +303,41 @@ class Analysis():
         # df = df.Define("res_vertex_x_all_tracks", "Vertex_refit_x_all_tracks - gen_vertex_x")
         # df = df.Define("res_vertex_y_all_tracks", "Vertex_refit_y_all_tracks - gen_vertex_y")
         # df = df.Define("res_vertex_z_all_tracks", "Vertex_refit_z_all_tracks - gen_vertex_z")
+
+        ############################################# Secondary Vertices #######################################################
+        # first we find the secondary vertices per event ...        
+        df = df.Define("SVs_looseBS", 
+            "FCCAnalyses::VertexFinderLCFIPlus::get_SV_event("
+            "SecondaryTracks_looseBS, "
+            "trackstates_selected_baseline_flipped, "
+            "VertexObject_looseBS, "
+            "true, "   # V0 rejection
+            "10., 10., 5., "  # chi2_cut, invM_cut, chi2Tr_cut
+            "1.5, "    # solenoidBz [T] - ALEPH field
+            "0.8)"     # dR_prefilter_cut
+        )
+
+        #.. then we assign them to the closest jet based on dR (also tracks to be moved between jets, in contrast to using get_SV_jet ! )
+        df = df.Define("sv_jets", "FCCAnalyses::AlephSelection::assign_SV_to_jets(SVs_looseBS, jets)")
+
+        # secondary vertex multiplicities
+        df = df.Define("n_sv_event", "int(SVs_looseBS.size())")
+        df = df.Define("n_sv_jets",  "FCCAnalyses::VertexingUtils::get_n_SV_jets(sv_jets)")
+
+        # secondary vertex  properties
+        df = df.Define("sv_chi2",        "FCCAnalyses::VertexingUtils::get_chi2_SV(sv_jets)")
+        df = df.Define("sv_chi2_norm",   "FCCAnalyses::VertexingUtils::get_norm_chi2_SV(sv_jets)")
+        df = df.Define("sv_ndof",        "FCCAnalyses::VertexingUtils::get_nDOF_SV(sv_jets)")
+        df = df.Define("sv_ntracks",     "FCCAnalyses::VertexingUtils::get_VertexNtrk(sv_jets)")
+        df = df.Define("sv_mass",        "FCCAnalyses::VertexingUtils::get_invM(sv_jets)")
+        df = df.Define("sv_p",           "FCCAnalyses::VertexingUtils::get_pMag_SV(sv_jets)")
+        df = df.Define("sv_thetarel",    "FCCAnalyses::VertexingUtils::get_relTheta_SV(sv_jets, jets)")
+        df = df.Define("sv_phirel",      "FCCAnalyses::VertexingUtils::get_relPhi_SV(sv_jets, jets)")
+        df = df.Define("sv_dxy",         "FCCAnalyses::VertexingUtils::get_dxy_SV(sv_jets, VertexObject_looseBS)")
+        df = df.Define("sv_dxyz",        "FCCAnalyses::VertexingUtils::get_d3d_SV(sv_jets, VertexObject_looseBS)")
+        df = df.Define("sv_cosPointing", "FCCAnalyses::VertexingUtils::get_pointingangle_SV(sv_jets, VertexObject_looseBS)")
+
+
 
 
         ############################################# Particle Flow Level Variables #######################################################
@@ -502,6 +538,21 @@ class Analysis():
             # "res_vertex_x_all_tracks",
             # "res_vertex_y_all_tracks",
             # "res_vertex_z_all_tracks",
+
+            # secondary vertices:
+            "n_sv_event",
+            "n_sv_jets",
+            "sv_chi2",
+            "sv_chi2_norm",
+            "sv_ndof",
+            "sv_ntracks",
+            "sv_mass",
+            "sv_p",
+            "sv_thetarel",
+            "sv_phirel",
+            "sv_dxy",
+            "sv_dxyz",
+            "sv_cosPointing",
 
             # Track variables
             "n_tracks_all",

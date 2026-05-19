@@ -37,6 +37,9 @@
 #include "FCCAnalyses/JetClusteringUtils.h"
 // #include "FCCAnalyses/ExternalRecombiner.h"
 #include "FCCAnalyses/MCParticle.h"
+#include "FCCAnalyses/VertexingUtils.h"
+
+#include "TVector3.h"
 
 #include "edm4hep/MCParticleData.h"
 #include "edm4hep/Track.h"
@@ -775,7 +778,42 @@ rv::RVec<rv::RVec<int>> mask(const rv::RVec<FCCAnalysesJetConstituentsData> &ene
     return out;
 }
 
+// -----------------------------------
+// Custom helpers for secondary vertexing
+// -----------------------------------
 
+using FCCAnalysesVertex = FCCAnalyses::VertexingUtils::FCCAnalysesVertex;
+
+
+// helper function which assigns secondary vertices as found per event to the jets using a closest dR match 
+ROOT::VecOps::RVec<ROOT::VecOps::RVec<FCCAnalysesVertex>>
+assign_SV_to_jets(
+    const ROOT::VecOps::RVec<FCCAnalysesVertex>& secondary_vertex_objects, 
+    const ROOT::VecOps::RVec<fastjet::PseudoJet>& jets)
+{   
+  // returned object is a vector of vectors where outer index are the jets, and inner index are the secondary vertices assigned to that jet 
+    ROOT::VecOps::RVec<ROOT::VecOps::RVec<FCCAnalysesVertex>> result(jets.size());
+    if (jets.size() == 0) return result;
+
+    // use helper function from FCCAna to obtain the secondary vertex 3 vector
+    ROOT::VecOps::RVec<TVector3> sv_momenta = FCCAnalyses::VertexingUtils::get_p_SV(secondary_vertex_objects);
+
+    for (unsigned int sv_idx = 0; sv_idx < secondary_vertex_objects.size(); sv_idx++) {
+        TVector3 sv_p = sv_momenta.at(sv_idx);
+        if (sv_p.Mag() < 1e-10) {
+            std::cerr << "WARNING: Secondary vertex with zero momentum encountered, skipping jet assignment" << std::endl;
+            continue;
+        }
+        double minDR = 99.;
+        unsigned int best_jet = 0;
+        for (unsigned int j = 0; j < jets.size(); j++) {
+            double dR = sv_p.DeltaR(TVector3(jets[j].px(), jets[j].py(), jets[j].pz()));
+            if (dR < minDR) { minDR = dR; best_jet = j; }
+        }
+        result.at(best_jet).push_back(secondary_vertex_objects.at(sv_idx));
+    }
+    return result;
+}
 
 
 
