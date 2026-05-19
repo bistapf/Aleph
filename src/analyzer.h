@@ -38,6 +38,7 @@
 // #include "FCCAnalyses/ExternalRecombiner.h"
 #include "FCCAnalyses/MCParticle.h"
 #include "FCCAnalyses/VertexingUtils.h"
+#include "FCCAnalyses/VertexFinderLCFIPlus.h" 
 
 #include "TVector3.h"
 
@@ -813,6 +814,78 @@ assign_SV_to_jets(
         result.at(best_jet).push_back(secondary_vertex_objects.at(sv_idx));
     }
     return result;
+}
+
+// V0 rejection with ALEPH-tuned tight constraints, following Luka's implementation in ntuplizer
+// inclusive=false (default): a track can only appear in one V0 pair (more physically correct).
+// inclusive=true:  matches ntuplizer behaviour — a track can be flagged by multiple V0 pairs
+ROOT::VecOps::RVec<edm4hep::TrackState>
+V0rejection_ALEPH(
+    const ROOT::VecOps::RVec<edm4hep::TrackState>& np_tracks,
+    const FCCAnalysesVertex& PV,
+    double solenoidBz = 1.5,
+    bool inclusive = false)
+{
+    int nTr = np_tracks.size();
+    ROOT::VecOps::RVec<bool> isInV0(nTr, false);
+    if (nTr < 2) return np_tracks;
+
+    ROOT::VecOps::RVec<edm4hep::TrackState> tr_pair;
+    edm4hep::TrackState tr_i, tr_j;
+    tr_pair.push_back(tr_i);
+    tr_pair.push_back(tr_j);
+    FCCAnalysesVertex V0_vtx;
+
+    for (unsigned int i = 0; i < nTr-1; i++) {
+        if (!inclusive && isInV0[i]) continue;
+        tr_pair[0] = np_tracks[i];
+        for (unsigned int j = i+1; j < nTr; j++) {
+            if (!inclusive && isInV0[j]) continue;
+            if (tr_pair[0].omega * np_tracks[j].omega > 0) continue;
+            tr_pair[1] = np_tracks[j];
+
+            auto cand = FCCAnalyses::VertexFinderLCFIPlus::get_V0candidate(
+                V0_vtx, tr_pair, PV, true, 9., solenoidBz);
+            if (cand.size() == 0) continue;
+
+            // ALEPH-tuned tight constraints (widened mass windows, reduced distance minimum)
+            bool isKs    = cand[0]>0.453 && cand[0]<0.553 && cand[4]>0.1 && cand[5]>0.999;
+            bool isLam1  = cand[1]>1.06  && cand[1]<1.16  && cand[4]>0.1 && cand[5]>0.99995;
+            bool isLam2  = cand[2]>1.06  && cand[2]<1.16  && cand[4]>0.1 && cand[5]>0.99995;
+            bool isGamma = cand[3]<0.005 && cand[4]>0.9   && cand[5]>0.99995;
+
+            if (isKs || isLam1 || isLam2 || isGamma) {
+                isInV0[i] = true;
+                isInV0[j] = true;
+                if (!inclusive) break;
+            }
+        }
+    }
+
+    ROOT::VecOps::RVec<edm4hep::TrackState> result;
+    for (unsigned int i = 0; i < nTr; i++)
+        if (!isInV0[i]) result.push_back(np_tracks[i]);
+    return result;
+}
+
+// SV finding with all ALEPH-specific defaults: 1.5 T field, ALEPH-tuned V0 rejection,
+// dR prefilter enabled. Set inclusive_v0=true to match ntuplizer behaviour exactly.
+ROOT::VecOps::RVec<FCCAnalysesVertex>
+get_SV_event_ALEPH(
+    const ROOT::VecOps::RVec<edm4hep::TrackState>& np_tracks,
+    const ROOT::VecOps::RVec<edm4hep::TrackState>& all_tracks,
+    const FCCAnalysesVertex& PV,
+    double dR_cut = 0.8,
+    bool inclusive_v0 = false)
+{
+    auto tracks_no_v0 = V0rejection_ALEPH(np_tracks, PV, 1.5, inclusive_v0);
+    return FCCAnalyses::VertexFinderLCFIPlus::get_SV_event(
+        tracks_no_v0, all_tracks, PV,
+        false,         // V0 rejection already done above with ALEPH constraints
+        10., 10., 5., // chi2_cut, invM_cut, chi2Tr_cut
+        1.5,           // solenoidBz [T]
+        dR_cut
+    );
 }
 
 

@@ -306,15 +306,12 @@ class Analysis():
 
         ############################################# Secondary Vertices #######################################################
         # first we find the secondary vertices per event ...        
-        df = df.Define("SVs_looseBS", 
-            "FCCAnalyses::VertexFinderLCFIPlus::get_SV_event("
-            "SecondaryTracks_looseBS, "
-            "trackstates_selected_baseline_flipped, "
-            "VertexObject_looseBS, "
-            "true, "   # V0 rejection
-            "10., 10., 5., "  # chi2_cut, invM_cut, chi2Tr_cut
-            "1.5, "    # solenoidBz [T] - ALEPH field
-            "0.8)"     # dR_prefilter_cut
+        df = df.Define("SVs_looseBS", "FCCAnalyses::AlephSelection::get_SV_event_ALEPH("
+            "SecondaryTracks_looseBS, "               # non-primary tracks
+            "trackstates_selected_baseline_flipped, " # all tracks
+            "VertexObject_looseBS, "                  # primary vertex
+            "0.8, "                                   # dR prefilter cut
+            "true)"                                   # inclusive V0 rejection following Luka's approach - TO BE REVISTED!
         )
 
         #.. then we assign them to the closest jet based on dR (also tracks to be moved between jets, in contrast to using get_SV_jet ! )
