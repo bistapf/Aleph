@@ -982,6 +982,117 @@ get_pointingangle_SV(
     return result;
 }
 
+// -----------------------------------
+// V0 reconstruction
+// -----------------------------------
+
+// Corrected invariant mass of a single SV (CMS-BTV-16-002):
+//   sqrt(m^2 + p^2*sin^2(theta)) + p*sin(theta)
+// where theta is the angle between the SV momentum sum and the SV-PV displacement vector.
+// This accounts for neutral particles that are not reconstructed at the SV.
+double get_correctedInvMass_SV_single(
+    const FCCAnalysesVertex& sv,
+    const FCCAnalysesVertex& PV)
+{
+    double rawMass = FCCAnalyses::VertexingUtils::get_invM(sv);
+    TVector3 p_sum;
+    for (const auto& p_tr : sv.updated_track_momentum_at_vertex)
+        p_sum += p_tr;
+    double p_mag = p_sum.Mag();
+    edm4hep::Vector3f r_sv = sv.vertex.position;
+    edm4hep::Vector3f r_pv = PV.vertex.position;
+    TVector3 flight(r_sv[0]-r_pv[0], r_sv[1]-r_pv[1], r_sv[2]-r_pv[2]);
+    double cosTheta = p_sum.Dot(flight) / (p_mag * flight.Mag());
+    if (std::abs(cosTheta) > 1.) cosTheta /= std::abs(cosTheta);
+    double sin2Theta = 1. - cosTheta*cosTheta;
+    double sinTheta  = std::sqrt(sin2Theta);
+    return std::sqrt(rawMass*rawMass + p_mag*p_mag*sin2Theta) + p_mag*sinTheta;
+}
+
+// Per-jet corrected invariant mass of SVs
+ROOT::VecOps::RVec<ROOT::VecOps::RVec<double>>
+get_correctedInvMass_SV(
+    const ROOT::VecOps::RVec<ROOT::VecOps::RVec<FCCAnalysesVertex>>& vertices,
+    const FCCAnalysesVertex& PV)
+{
+    ROOT::VecOps::RVec<ROOT::VecOps::RVec<double>> result;
+    for (const auto& jet_vtx : vertices) {
+        ROOT::VecOps::RVec<double> temp;
+        for (const auto& vtx : jet_vtx)
+            temp.push_back(get_correctedInvMass_SV_single(vtx, PV));
+        result.push_back(temp);
+    }
+    return result;
+}
+
+// Count V0s of a given PDG ID per jet (e.g. 310 for Ks, 3122 for Lambda)
+ROOT::VecOps::RVec<int>
+count_V0type_jets(
+    const ROOT::VecOps::RVec<ROOT::VecOps::RVec<int>>& pdg_per_jet,
+    int target_pdg)
+{
+    ROOT::VecOps::RVec<int> result;
+    for (const auto& jet_pdg : pdg_per_jet) {
+        int n = 0;
+        for (int pdg : jet_pdg) if (pdg == target_pdg) n++;
+        result.push_back(n);
+    }
+    return result;
+}
+
+// V0 finding with ALEPH-specific constraints, matching the values used in V0rejection_ALEPH
+FCCAnalyses::VertexingUtils::FCCAnalysesV0
+get_V0s_ALEPH(
+    const ROOT::VecOps::RVec<edm4hep::TrackState>& np_tracks,
+    const FCCAnalysesVertex& PV,
+    double solenoidBz = 1.5)
+{
+    return FCCAnalyses::VertexFinderLCFIPlus::get_V0s(
+        np_tracks, PV,
+        0.453, 0.553, 0.1, 0.999,    // Ks:     mass window [GeV], dis_min [mm], cosAng
+        1.06,  1.16,  0.1, 0.99995,  // Lambda
+        0.0,   0.005, 0.9, 0.99995,  // Gamma
+        9., solenoidBz
+    );
+}
+
+// Bundles V0 candidates distributed over jets (vtx, PDG ID, invariant mass together).
+// Keeping these three arrays in sync ensures the PDG-to-mass correspondence is never broken.
+struct V0sPerJet {
+    ROOT::VecOps::RVec<ROOT::VecOps::RVec<FCCAnalysesVertex>> vtx;
+    ROOT::VecOps::RVec<ROOT::VecOps::RVec<int>>               pdgAbs;
+    ROOT::VecOps::RVec<ROOT::VecOps::RVec<double>>            invM;
+};
+
+// Assign event-level V0 candidates to jets using closest-dR matching
+V0sPerJet
+assign_V0s_to_jets(
+    const FCCAnalyses::VertexingUtils::FCCAnalysesV0& v0s,
+    const ROOT::VecOps::RVec<fastjet::PseudoJet>& jets)
+{
+    V0sPerJet result;
+    result.vtx.resize(jets.size());
+    result.pdgAbs.resize(jets.size());
+    result.invM.resize(jets.size());
+    if (jets.size() == 0 || v0s.vtx.size() == 0) return result;
+
+    ROOT::VecOps::RVec<TVector3> v0_momenta = FCCAnalyses::VertexingUtils::get_p_SV(v0s.vtx);
+    for (unsigned int i = 0; i < v0s.vtx.size(); i++) {
+        TVector3 v0_p = v0_momenta.at(i);
+        if (v0_p.Mag() < 1e-10) continue;
+        double minDR = 99.;
+        unsigned int best_jet = 0;
+        for (unsigned int j = 0; j < jets.size(); j++) {
+            double dR = v0_p.DeltaR(TVector3(jets[j].px(), jets[j].py(), jets[j].pz()));
+            if (dR < minDR) { minDR = dR; best_jet = j; }
+        }
+        result.vtx[best_jet].push_back(v0s.vtx[i]);
+        result.pdgAbs[best_jet].push_back(v0s.pdgAbs[i]);
+        result.invM[best_jet].push_back(v0s.invM[i]);
+    }
+    return result;
+}
+
 
 }} // namespace FCCAnalyses::AlephSelection
 
