@@ -884,7 +884,9 @@ get_SV_event_ALEPH(
         false,         // V0 rejection already done above with ALEPH constraints
         10., 10., 5., // chi2_cut, invM_cut, chi2Tr_cut
         1.5,           // solenoidBz [T]
-        dR_cut
+        dR_cut,       // dR_cut for prefiltering
+        true,          // require opposite-charge seed pairs (matches ntuplizer)
+        true           // tight V0 constraints in per-pair seed screening (matches ntuplizer)
     );
 }
 
