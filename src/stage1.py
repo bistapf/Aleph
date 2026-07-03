@@ -350,7 +350,9 @@ class Analysis():
         df = df.Define("V0s_event",
             "FCCAnalyses::AlephSelection::get_V0s_ALEPH("
             "SecondaryTracks_looseBS, "
-            "VertexObject_looseBS)"
+            "VertexObject_looseBS,"
+            ".5," #solenoidBz
+            "true)" #loose_mass_window
         )
         df = df.Define("v0s_per_jet", "FCCAnalyses::AlephSelection::assign_V0s_to_jets(V0s_event, jets)")
         df = df.Define("v0_jets",  "v0s_per_jet.vtx")

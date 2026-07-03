@@ -845,7 +845,7 @@ V0rejection_ALEPH(
             tr_pair[1] = np_tracks[j];
 
             auto cand = FCCAnalyses::VertexFinderLCFIPlus::get_V0candidate(
-                V0_vtx, tr_pair, PV, true, 9., solenoidBz);
+                V0_vtx, tr_pair, PV, true, 9.);
             if (cand.size() == 0) continue;
 
             // ALEPH-tuned tight constraints (widened mass windows, reduced distance minimum)
@@ -1047,15 +1047,27 @@ FCCAnalyses::VertexingUtils::FCCAnalysesV0
 get_V0s_ALEPH(
     const ROOT::VecOps::RVec<edm4hep::TrackState>& np_tracks,
     const FCCAnalysesVertex& PV,
-    double solenoidBz = 1.5)
-{
-    return FCCAnalyses::VertexFinderLCFIPlus::get_V0s(
-        np_tracks, PV,
-        0.453, 0.553, 0.1, 0.999,    // Ks:     mass window [GeV], dis_min [mm], cosAng
-        1.06,  1.16,  0.1, 0.99995,  // Lambda
-        0.0,   0.005, 0.9, 0.99995,  // Gamma
-        9., solenoidBz
-    );
+    double solenoidBz = 1.5, bool loose_mass_window = false)
+{   
+  if (loose_mass_window){
+      return FCCAnalyses::VertexFinderLCFIPlus::get_V0s(
+          np_tracks, PV,
+          0.1, 1.4, 0.1, 0.999,    // Ks:     mass window [GeV], dis_min [mm], cosAng
+          0.1,  1.4,  0.1, 0.99995,  // Lambda
+          0.0,   0.005, 0.9, 0.99995,  // Gamma
+          9., solenoidBz
+      );
+  }
+
+  else{
+      return FCCAnalyses::VertexFinderLCFIPlus::get_V0s(
+          np_tracks, PV,
+          0.453, 0.553, 0.1, 0.999,    // Ks:     mass window [GeV], dis_min [mm], cosAng
+          1.06,  1.16,  0.1, 0.99995,  // Lambda
+          0.0,   0.005, 0.9, 0.99995,  // Gamma
+          9., solenoidBz
+      );
+  }
 }
 
 // Bundles V0 candidates distributed over jets (vtx, PDG ID, invariant mass together).
