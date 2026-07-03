@@ -7,7 +7,9 @@ Version of the FCCAnalyses code that supports command line arguments, to be able
 git clone https://github.com/Apranikstar/Aleph.git
 cd Aleph
 git submodule update --init --recursive
-cd src
+cd FCCAnalyses
+fccanalysis build -j 8
+cd ../src
 source /cvmfs/sw-nightlies.hsf.org/key4hep/setup.sh #or compile and source the FCCAnalyses module.
 ```
 
