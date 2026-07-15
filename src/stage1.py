@@ -736,9 +736,7 @@ class Analysis():
             "pfcand_PID_pval_wires_kaon",
             "pfcand_PID_pval_wires_proton",
 
-            "EVT_thrustNP",
-            "RP_thrustangleNP",
-            "EVT_thrust",
+
             "EVT_Thrust_Mag",
             "EVT_Thrust_X",
             "EVT_Thrust_Y",
