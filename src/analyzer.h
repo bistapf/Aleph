@@ -764,6 +764,134 @@ rv::RVec<FCCAnalysesJetConstituentsData> get_pz(const rv::RVec<FCCAnalysesJetCon
       return cast_constituent(jcs, ReconstructedParticle::get_pz);
     }
 
+// ---------------------------------------------------------------------------
+// Jet-constituent variables missing from FCCAnalyses' JetConstituentsUtils.
+// Definitions follow the reference ntuplizer so the outputs are comparable.
+// ---------------------------------------------------------------------------
+
+// ptrel = constituent pT / jet pT  (a ratio, exactly like erel - NOT the
+// component of the momentum perpendicular to the jet axis).
+rv::RVec<FCCAnalysesJetConstituentsData>
+get_ptrel_cluster(const rv::RVec<fastjet::PseudoJet> &jets,
+                  const rv::RVec<FCCAnalysesJetConstituents> &jcs)
+{
+  rv::RVec<FCCAnalysesJetConstituentsData> out;
+  for (size_t i = 0; i < jets.size(); ++i) {
+    auto &jet_csts = out.emplace_back();
+    double pt_jet = jets.at(i).pt();
+    auto csts = FCCAnalyses::JetConstituentsUtils::get_jet_constituents(jcs, i);
+    for (const auto &jc : csts) {
+      TLorentzVector jcvec;
+      jcvec.SetXYZM(jc.momentum.x, jc.momentum.y, jc.momentum.z, jc.mass);
+      jet_csts.emplace_back(pt_jet > 0. ? jcvec.Pt() / pt_jet : 1.);
+    }
+  }
+  return out;
+}
+
+rv::RVec<FCCAnalysesJetConstituentsData>
+get_ptrel_log_cluster(const rv::RVec<fastjet::PseudoJet> &jets,
+                      const rv::RVec<FCCAnalysesJetConstituents> &jcs)
+{
+  rv::RVec<FCCAnalysesJetConstituentsData> out;
+  for (const auto &jet_csts : get_ptrel_cluster(jets, jcs)) {
+    auto &o = out.emplace_back();
+    for (const auto &v : jet_csts) o.emplace_back(float(std::log10(v)));
+  }
+  return out;
+}
+
+// --- per-constituent track quality -----------------------------------------
+// A ReconstructedParticle points at its track via tracks_begin; neutral
+// constituents have no track, for which we store -1 (as the reference does).
+
+rv::RVec<FCCAnalysesJetConstituentsData>
+get_constituent_trackQuality(const rv::RVec<FCCAnalysesJetConstituents> &jcs,
+                             const rv::RVec<edm4hep::TrackData> &tracks,
+                             int mode) // 0 = chi2, 1 = ndof, 2 = chi2/ndof
+{
+  rv::RVec<FCCAnalysesJetConstituentsData> out;
+  for (const auto &jet_csts : jcs) {
+    auto &o = out.emplace_back();
+    for (const auto &p : jet_csts) {
+      float val = -1.;
+      // tracks_begin != tracks_end is the actual "has a track" test: for a neutral particle
+      // tracks_begin still holds an in-range index, so a bare `tracks_begin < tracks.size()`
+      // silently reads ANOTHER particle's track (verified: it mislabels ~99% of neutrals).
+      size_t trackIndex = p.tracks_begin;
+      if (p.tracks_begin != p.tracks_end && trackIndex < tracks.size()) {
+        const edm4hep::TrackData &tr = tracks.at(trackIndex);
+        if      (mode == 0) val = tr.chi2;
+        else if (mode == 1) val = tr.ndf;
+        else                val = (tr.ndf != 0) ? tr.chi2 / float(tr.ndf) : -1.;
+      }
+      o.emplace_back(val);
+    }
+  }
+  return out;
+}
+
+rv::RVec<FCCAnalysesJetConstituentsData>
+get_constituent_trackChi2(const rv::RVec<FCCAnalysesJetConstituents> &jcs,
+                          const rv::RVec<edm4hep::TrackData> &tracks)
+{ return get_constituent_trackQuality(jcs, tracks, 0); }
+
+rv::RVec<FCCAnalysesJetConstituentsData>
+get_constituent_trackNdof(const rv::RVec<FCCAnalysesJetConstituents> &jcs,
+                          const rv::RVec<edm4hep::TrackData> &tracks)
+{ return get_constituent_trackQuality(jcs, tracks, 1); }
+
+rv::RVec<FCCAnalysesJetConstituentsData>
+get_constituent_trackChi2Norm(const rv::RVec<FCCAnalysesJetConstituents> &jcs,
+                              const rv::RVec<edm4hep::TrackData> &tracks)
+{ return get_constituent_trackQuality(jcs, tracks, 2); }
+
+// --- per-constituent subdetector hit counts --------------------------------
+// subdetectorNumber assumes inside-out ordering: 0 = VDET, 1 = ITC, 2 = TPC.
+rv::RVec<FCCAnalysesJetConstituentsData>
+get_constituent_nTrackHits(const rv::RVec<FCCAnalysesJetConstituents> &jcs,
+                           const rv::RVec<edm4hep::TrackData> &tracks,
+                           const rv::RVec<int> &subdetectorHitNumbers,
+                           int subdetectorNumber)
+{
+  rv::RVec<FCCAnalysesJetConstituentsData> out;
+  for (const auto &jet_csts : jcs) {
+    auto &o = out.emplace_back();
+    for (const auto &p : jet_csts) {
+      float nHits = -1.;
+      // see note in get_constituent_trackQuality: neutrals need the begin!=end test
+      size_t trackIndex = p.tracks_begin;
+      if (p.tracks_begin != p.tracks_end && trackIndex < tracks.size()) {
+        const edm4hep::TrackData &tr = tracks.at(trackIndex);
+        size_t hitIdx = tr.subdetectorHitNumbers_begin + subdetectorNumber;
+        if (hitIdx < subdetectorHitNumbers.size())
+          nHits = subdetectorHitNumbers.at(hitIdx);
+      }
+      o.emplace_back(nHits);
+    }
+  }
+  return out;
+}
+
+rv::RVec<FCCAnalysesJetConstituentsData>
+get_constituent_nTrackHits_VDET(const rv::RVec<FCCAnalysesJetConstituents> &jcs,
+                                const rv::RVec<edm4hep::TrackData> &tracks,
+                                const rv::RVec<int> &shn)
+{ return get_constituent_nTrackHits(jcs, tracks, shn, 0); }
+
+rv::RVec<FCCAnalysesJetConstituentsData>
+get_constituent_nTrackHits_ITC(const rv::RVec<FCCAnalysesJetConstituents> &jcs,
+                               const rv::RVec<edm4hep::TrackData> &tracks,
+                               const rv::RVec<int> &shn)
+{ return get_constituent_nTrackHits(jcs, tracks, shn, 1); }
+
+rv::RVec<FCCAnalysesJetConstituentsData>
+get_constituent_nTrackHits_TPC(const rv::RVec<FCCAnalysesJetConstituents> &jcs,
+                               const rv::RVec<edm4hep::TrackData> &tracks,
+                               const rv::RVec<int> &shn)
+{ return get_constituent_nTrackHits(jcs, tracks, shn, 2); }
+
+
 rv::RVec<rv::RVec<int>> mask(const rv::RVec<FCCAnalysesJetConstituentsData> &energies)
     {
     rv::RVec<rv::RVec<int>> out;

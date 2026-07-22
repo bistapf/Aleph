@@ -246,7 +246,8 @@ class Analysis():
         # track - that is what the reference wrapper (getPrimaryTracks in analyzer_pvtools.cxx,
         # `if(tracksToUse.size() < 2){ return primaryTracks; }`) guards against. Without this we
         # get nPrim=1 where the reference has nPrim=0 (~1400 events / 1.05M in the full sweep).
-        df = df.Define("RecoedPrimaryTracks_looseBS", "trackstates_selected_for_vertexfit_flipped.size() < 2 ? ROOT::VecOps::RVec<edm4hep::TrackState>{} : VertexFitterSimple::get_PrimaryTracks(trackstates_selected_for_vertexfit_flipped, true, {},{},{},0.,0.,0., {})".format(res_x_loose/10., res_y_loose/10., res_z_loose*1E03, chi2max)) # 10um as unit (x,y), 1cm as unit (z)
+        # note: the {{}} is an escaped literal {} for str.format - it is the empty RVec, not a placeholder
+        df = df.Define("RecoedPrimaryTracks_looseBS", "trackstates_selected_for_vertexfit_flipped.size() < 2 ? ROOT::VecOps::RVec<edm4hep::TrackState>{{}} : VertexFitterSimple::get_PrimaryTracks(trackstates_selected_for_vertexfit_flipped, true, {},{},{},0.,0.,0., {})".format(res_x_loose/10., res_y_loose/10., res_z_loose*1E03, chi2max)) # 10um as unit (x,y), 1cm as unit (z)
         df = df.Define("VertexObject_looseBS", "VertexFitterSimple::VertexFitter_Tk(1, RecoedPrimaryTracks_looseBS, true, {},{},{},0.,0.,0.)".format(res_x_loose/10., res_y_loose/10., res_z_loose*1E03)) # 10um as unit (x,y), 1cm as unit (z)
         df = df.Define("Vertex_refit_looseBS", "VertexingUtils::get_VertexData(VertexObject_looseBS)")
         df = df.Define("Vertex_refit_tlv", "TLorentzVector(Vertex_refit_looseBS.position.x, Vertex_refit_looseBS.position.y, Vertex_refit_looseBS.position.z, 0.)")
@@ -415,6 +416,21 @@ class Analysis():
         df = df.Define("pfcand_erel_log", "JetConstituentsUtils::get_erel_log_cluster(jets, jetc)")
         df = df.Define("pfcand_thetarel", "JetConstituentsUtils::get_thetarel_cluster(jets, jetc)")
         df = df.Define("pfcand_phirel",   "JetConstituentsUtils::get_phirel_cluster(jets, jetc)")
+
+        # transverse momentum: ptrel is the ratio pT_constituent / pT_jet (same convention as erel)
+        df = df.Define("pfcand_pt",        "JetConstituentsUtils::get_pt(jetc)")
+        df = df.Define("pfcand_ptrel",     "AlephSelection::get_ptrel_cluster(jets, jetc)")
+        df = df.Define("pfcand_ptrel_log", "AlephSelection::get_ptrel_log_cluster(jets, jetc)")
+
+        # track fit quality per constituent (-1 for neutrals, which have no track)
+        df = df.Define("pfcand_trackChi2",     "AlephSelection::get_constituent_trackChi2(jetc, Tracks)")
+        df = df.Define("pfcand_trackNdof",     "AlephSelection::get_constituent_trackNdof(jetc, Tracks)")
+        df = df.Define("pfcand_trackChi2Norm", "AlephSelection::get_constituent_trackChi2Norm(jetc, Tracks)")
+
+        # subdetector hit counts per constituent (inside-out: VDET, ITC, TPC)
+        df = df.Define("pfcand_nTrackHits_VDET", "AlephSelection::get_constituent_nTrackHits_VDET(jetc, Tracks, _Tracks_subdetectorHitNumbers)")
+        df = df.Define("pfcand_nTrackHits_ITC",  "AlephSelection::get_constituent_nTrackHits_ITC(jetc, Tracks, _Tracks_subdetectorHitNumbers)")
+        df = df.Define("pfcand_nTrackHits_TPC",  "AlephSelection::get_constituent_nTrackHits_TPC(jetc, Tracks, _Tracks_subdetectorHitNumbers)")
 
         df = df.Define("Bz", '1.5') # luka reads this from the event ? 
 
@@ -701,10 +717,20 @@ class Analysis():
             "pfcand_phi", 
             "pfcand_charge", 
             "pfcand_type",
-            "pfcand_erel", 
-            "pfcand_erel_log", 
-            "pfcand_thetarel", 
-            "pfcand_phirel", 
+            "pfcand_erel",
+            "pfcand_erel_log",
+            "pfcand_thetarel",
+            "pfcand_phirel",
+
+            "pfcand_pt",
+            "pfcand_ptrel",
+            "pfcand_ptrel_log",
+            "pfcand_trackChi2",
+            "pfcand_trackNdof",
+            "pfcand_trackChi2Norm",
+            "pfcand_nTrackHits_VDET",
+            "pfcand_nTrackHits_ITC",
+            "pfcand_nTrackHits_TPC", 
             "pfcand_dxy", 
             "pfcand_dz", 
             "pfcand_phi0", 
